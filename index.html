@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Phonk Visualizer • tellegol14</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #000;
+  color: white;
+  font-family: system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.panel {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+button, select, label {
+  background: rgba(20,20,20,0.9);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+label input { display: none; }
+
+canvas {
+  display: block;
+}
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+  <label>
+    MP3
+    <input type="file" id="audioFile" accept="audio/mp3">
+  </label>
+
+  <select id="color">
+    <option value="#ffffff">Blanco</option>
+    <option value="#ff0000">Rojo</option>
+    <option value="#a000ff">Violeta</option>
+    <option value="#00ffff">Cian</option>
+  </select>
+
+  <button id="start">Crear</button>
+  <button id="record">Exportar</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const W = canvas.width = 1080;
+const H = canvas.height = 1920;
+
+let audio, audioCtx, analyser, data;
+let recorder, chunks = [];
+let particles = [];
+let color = "#fff";
+
+document.getElementById("color").onchange = e => color = e.target.value;
+
+for (let i = 0; i < 120; i++) {
+  particles.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    speed: 2 + Math.random() * 4,
+    size: 1 + Math.random() * 2
+  });
+}
+
+document.getElementById("start").onclick = () => {
+  const file = document.getElementById("audioFile").files[0];
+  if (!file) return alert("Subí un MP3");
+
+  audio = new Audio(URL.createObjectURL(file));
+  audioCtx = new AudioContext();
+
+  const src = audioCtx.createMediaElementSource(audio);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  data = new Uint8Array(analyser.frequencyBinCount);
+
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  audio.play();
+  animate();
+};
+
+document.getElementById("record").onclick = () => {
+  const stream = canvas.captureStream(60);
+  recorder = new MediaRecorder(stream);
+  chunks = [];
+
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: "video/webm" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "phonk_tellegol14.webm";
+    a.click();
+  };
+
+  recorder.start();
+  setTimeout(() => recorder.stop(), audio.duration * 1000);
+};
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  analyser.getByteFrequencyData(data);
+
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, W, H);
+
+  // partículas tipo lluvia
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  particles.forEach(p => {
+    p.y += p.speed;
+    p.x += p.speed * 0.3;
+    if (p.y > H) p.y = -10;
+    if (p.x > W) p.x = 0;
+    ctx.fillRect(p.x, p.y, p.size, p.size * 4);
+  });
+
+  // bass
+  let bass = 0;
+  for (let i = 0; i < 20; i++) bass += data[i];
+  bass /= 20;
+
+  // círculo reactivo
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 16;
+  ctx.shadowBlur = 40;
+  ctx.shadowColor = color;
+
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, 260 + bass * 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // logo TL
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = color;
+  ctx.font = "bold 140px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("TL", W/2, H/2 + 50);
+
+  // marca de agua
+  ctx.globalAlpha = 0.3;
+  ctx.font = "32px Arial";
+  ctx.fillText("@tellegol14 ♪", W/2, H - 80);
+  ctx.globalAlpha = 1;
+}
+</script>
+
+</body>
+</html>
